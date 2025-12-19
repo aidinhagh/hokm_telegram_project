@@ -1,0 +1,16 @@
+{
+  "name": "hokm-telegram-game",
+  "version": "1.0.0",
+  "description": "Hokm HTML5 game integrated with Telegram Games and admin result notifications.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "node-telegram-bot-api": "^0.66.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
