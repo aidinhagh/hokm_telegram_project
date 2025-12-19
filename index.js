@@ -1,36 +1,35 @@
-
 const express = require("express");
 const bodyParser = require("body-parser");
 const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
 
-const BOT_TOKEN = process.env.BOT_TOKEN || "";
+// --- CONFIG ---
+const BOT_TOKEN = process.env.BOT_TOKEN;               // your bot token
 const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || "0");
-const GAME_SHORT_NAME = process.env.GAME_SHORT_NAME || "hokm";
+const GAME_SHORT_NAME = process.env.GAME_SHORT_NAME || "hokmzombie"; // <-- from BotFather
 const GAME_URL =
   process.env.GAME_URL ||
-  "https://hokm_telegram_project.onrender.com/hokm.html";
+  "https://hokm_telegram_project.onrender.com/hokm.html"; // <-- where hokm.html will be
 
 if (!BOT_TOKEN) {
   throw new Error("BOT_TOKEN is not set");
 }
-if (!ADMIN_CHAT_ID) {
-  console.warn("WARNING: ADMIN_CHAT_ID is not set. Results will not be sent to admin.");
-}
 
+// --- INIT ---
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 const app = express();
+
 app.use(bodyParser.json());
 
-// Serve static files (including hokm.html) from project root
+// 🔹 THIS LINE MAKES /hokm.html WORK
 app.use(express.static(path.join(__dirname)));
 
-// Health check
+// Simple health check on "/"
 app.get("/", (req, res) => {
   res.send("Hokm Telegram Game bot is running.");
 });
 
-// Endpoint that receives result from hokm.html and forwards to admin
+// Endpoint that hokm.html calls at the end of a game
 app.post("/hokm/result", async (req, res) => {
   try {
     const {
@@ -42,30 +41,22 @@ app.post("/hokm/result", async (req, res) => {
       tricksEnemy,
       wallet,
       bet,
-    } = req.body || {};
+    } = req.body;
 
     const resultText = won ? "WIN ✅" : "LOSE ❌";
 
-    const lines = [
-      "🎮 Hokm Game Finished",
-      `👤 Player ID: ${userId || "unknown"}`,
-    ];
-
-    if (chatId) lines.push(`💬 Chat ID: ${chatId}`);
-    if (messageId) lines.push(`🧾 Message ID: ${messageId}`);
-    lines.push(
-      `📊 Result: ${resultText}`,
-      `🎯 Tricks (Team vs Enemy): ${tricksTeam}-${tricksEnemy}`,
-      `💰 Bet: $${bet}`,
-      `👛 Wallet after game: $${wallet}`
-    );
-
-    const text = lines.join("\n");
+    const text =
+      `🎮 Hokm Game Finished\n` +
+      `👤 Player ID: ${userId || "unknown"}\n` +
+      (chatId ? `💬 Chat ID: ${chatId}\n` : "") +
+      (messageId ? `🧾 Message ID: ${messageId}\n` : "") +
+      `📊 Result: ${resultText}\n` +
+      `🎯 Tricks (Team vs Enemy): ${tricksTeam}-${tricksEnemy}\n` +
+      `💰 Bet: $${bet}\n` +
+      `👛 Wallet after game: $${wallet}`;
 
     if (ADMIN_CHAT_ID) {
       await bot.sendMessage(ADMIN_CHAT_ID, text);
-    } else {
-      console.log("ADMIN_CHAT_ID not set, result:\n" + text);
     }
 
     res.sendStatus(200);
@@ -75,30 +66,28 @@ app.post("/hokm/result", async (req, res) => {
   }
 });
 
-// When user sends /start or /hokm, send the game message
+// When user sends /start or /hokm, send the game
 bot.onText(/\/start|\/hokm/, (msg) => {
   bot.sendGame(msg.chat.id, GAME_SHORT_NAME);
 });
 
-// When user presses "Play", provide the URL of the HTML game.
+// When user presses Play, provide the game URL
 bot.on("callback_query", (query) => {
-  try {
-    if (query.game_short_name === GAME_SHORT_NAME) {
-      bot.answerCallbackQuery(query.id, {
-        url: GAME_URL,
-      });
-    } else {
-      bot.answerCallbackQuery(query.id, {
-        text: "Unknown game.",
-        show_alert: true,
-      });
-    }
-  } catch (e) {
-    console.error("Error in callback_query handler:", e);
+  if (query.game_short_name === GAME_SHORT_NAME) {
+    bot.answerCallbackQuery(query.id, {
+      url: GAME_URL,
+    });
+  } else {
+    bot.answerCallbackQuery(query.id, {
+      text: "Unknown game.",
+      show_alert: true,
+    });
   }
 });
 
+// --- START SERVER ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server listening on port", PORT);
 });
+
