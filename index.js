@@ -1,36 +1,30 @@
 const express = require("express");
 const bodyParser = require("body-parser");
-const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
 
-// ===== CONFIG =====
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || "0");
-
-// Game short name from BotFather (/newgame)
 const GAME_SHORT_NAME = process.env.GAME_SHORT_NAME || "hokmzombie";
-
-// URL where the HTML game lives (on Render)
 const GAME_URL =
   process.env.GAME_URL ||
-  "https://hokm_telegram_project.onrender.com/hokm.html";
+  "https://aidinhagh.github.io/hokm_telegram_project/hokm.html";
 
 if (!BOT_TOKEN) {
   throw new Error("BOT_TOKEN is not set");
 }
 
-// ===== INIT =====
 const app = express();
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
 
 app.use(bodyParser.json());
 
-// 🔹 Serve all files in repo root (including hokm.html)
-app.use(express.static(path.join(__dirname)));
-
-// EXTRA safety: explicit route for hokm.html
-app.get("/hokm.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "hokm.html"));
+// CORS so GitHub Pages can POST to Render
+app.use((req, res, next) => {
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  if (req.method === "OPTIONS") return res.sendStatus(200);
+  next();
 });
 
 // Health check
@@ -38,7 +32,7 @@ app.get("/", (req, res) => {
   res.send("Hokm Telegram Game bot is running.");
 });
 
-// Endpoint that the game calls at the end
+// Game result endpoint
 app.post("/hokm/result", async (req, res) => {
   try {
     const {
@@ -75,12 +69,12 @@ app.post("/hokm/result", async (req, res) => {
   }
 });
 
-// Send the game when user types /start or /hokm
+// /start or /hokm → send game
 bot.onText(/\/start|\/hokm/, (msg) => {
   bot.sendGame(msg.chat.id, GAME_SHORT_NAME);
 });
 
-// When user taps Play, give Telegram the URL
+// When user taps Play → open GitHub Pages URL
 bot.on("callback_query", (query) => {
   if (query.game_short_name === GAME_SHORT_NAME) {
     bot.answerCallbackQuery(query.id, {
@@ -94,8 +88,5 @@ bot.on("callback_query", (query) => {
   }
 });
 
-// Start HTTP server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server listening on port", PORT);
-});
+app.listen(PORT, () => console.log("Server listening on port", PORT));
