@@ -725,7 +725,7 @@ class HokmGame {
         }
 
         // ---- Send result to backend for admin notification ----
-        try {
+       try {
     let tgParams = {};
     if (typeof TelegramGameProxy !== "undefined" && TelegramGameProxy.initParams) {
         tgParams = TelegramGameProxy.initParams;
@@ -751,10 +751,8 @@ class HokmGame {
     });
 } catch (e) {
     console.error("Error building/sending Telegram result payload:", e);
-            });
-        } catch (e) {
-            console.error("Error building Telegram result payload:", e);
-        }
+}
+
         // -------------------------------------------------------
 
         btn.onclick = () => {
