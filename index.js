@@ -7,10 +7,10 @@ const TelegramBot = require("node-telegram-bot-api");
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || "0");
 
-// from BotFather: /newgame → hokmzombie
+// Game short name from BotFather (/newgame)
 const GAME_SHORT_NAME = process.env.GAME_SHORT_NAME || "hokmzombie";
 
-// where the HTML game lives (on Render)
+// URL where the HTML game lives (on Render)
 const GAME_URL =
   process.env.GAME_URL ||
   "https://hokm_telegram_project.onrender.com/hokm.html";
@@ -99,5 +99,3 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server listening on port", PORT);
 });
-
-
