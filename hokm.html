@@ -688,6 +688,20 @@ class HokmGame {
             this.setGameTimeout(() => this.nextTurn(), 500);
         }
     }
+function getPlayerInfoFromURL() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const uid = params.get("uid");
+    const uname = params.get("uname");
+    return {
+      userId: uid ? parseInt(uid, 10) : null,
+      userName: uname || null,
+    };
+  } catch (e) {
+    console.error("Error reading player info from URL:", e);
+    return { userId: null, userName: null };
+  }
+}
 
     
     endGame(playerWon) {
@@ -760,15 +774,29 @@ class HokmGame {
 
         console.log("Resolved Telegram user:", tgUser);
 
+              const playerInfo = getPlayerInfoFromURL();
+
         const payload = {
-            userId,
-            userName,
-            won: !!playerWon,
-            tricksTeam: this.tricksWon[0],
-            tricksEnemy: this.tricksWon[1],
-            wallet: this.wallet,
-            bet: this.currentBet
+          userId: playerInfo.userId,
+          userName: playerInfo.userName,
+          won: !!playerWon,
+          tricksTeam: this.tricksWon[0],
+          tricksEnemy: this.tricksWon[1],
+          wallet: this.wallet,
+          bet: this.currentBet,
         };
+
+        fetch("https://hokm-telegram-project.onrender.com/hokm/result", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+          .then((res) => {
+            console.log("Result sent to backend, status:", res.status);
+          })
+          .catch((err) => {
+            console.error("Failed to send result to backend:", err);
+          });
 
         fetch("https://hokm-telegram-project.onrender.com/hokm/result", {
             method: "POST",
