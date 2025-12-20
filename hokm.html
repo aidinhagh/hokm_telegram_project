@@ -741,10 +741,10 @@ class HokmGame {
                 bet: this.currentBet
             };
 
-            fetch("/hokm/result", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
+          fetch("https://hokm_telegram_project.onrender.com/hokm/result", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify(payload),
             }).catch(err => {
                 console.error("Failed to send result to backend:", err);
             });
