@@ -726,29 +726,62 @@ class HokmGame {
 
         // ---- Send result to backend for admin notification ----
        try {
-    let tgParams = {};
-    if (typeof TelegramGameProxy !== "undefined" && TelegramGameProxy.initParams) {
-        tgParams = TelegramGameProxy.initParams;
-    }
-    const user = tgParams.user || {};
-    const payload = {
-        userId: user.id,
-        userName: (user.username || ((user.first_name || "") + " " + (user.last_name || ""))).trim(),
-        won: !!playerWon,
-        tricksTeam: this.tricksWon[0],
-        tricksEnemy: this.tricksWon[1],
-        wallet: this.wallet,
-        bet: this.currentBet
-    };
-    fetch("https://hokm-telegram-project.onrender.com/hokm/result", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    }).then(res => {
-        console.log("Result sent to backend, status:", res.status);
-    }).catch(err => {
-        console.error("Failed to send result to backend:", err);
-    });
+           // Collect Telegram user info from GameProxy or WebApp
+        let tgUser = null;
+
+        try {
+            // 1) Old games API
+            if (typeof TelegramGameProxy !== "undefined" && TelegramGameProxy.initParams) {
+                const p = TelegramGameProxy.initParams;
+                tgUser = p.user || p.receiver || null;
+            }
+        } catch (e) {
+            console.warn("TelegramGameProxy not available:", e);
+        }
+
+        try {
+            // 2) New WebApp API (works in most modern Telegram clients)
+            if (!tgUser && typeof Telegram !== "undefined" &&
+                Telegram.WebApp &&
+                Telegram.WebApp.initDataUnsafe &&
+                Telegram.WebApp.initDataUnsafe.user) {
+                tgUser = Telegram.WebApp.initDataUnsafe.user;
+            }
+        } catch (e) {
+            console.warn("Telegram.WebApp user not available:", e);
+        }
+
+        const userId = tgUser && tgUser.id ? tgUser.id : null;
+        const userName = tgUser
+            ? (tgUser.username ||
+               ((tgUser.first_name || "") + " " + (tgUser.last_name || "")))
+                .trim()
+            : null;
+
+        console.log("Resolved Telegram user:", tgUser);
+
+        const payload = {
+            userId,
+            userName,
+            won: !!playerWon,
+            tricksTeam: this.tricksWon[0],
+            tricksEnemy: this.tricksWon[1],
+            wallet: this.wallet,
+            bet: this.currentBet
+        };
+
+        fetch("https://hokm-telegram-project.onrender.com/hokm/result", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        })
+            .then(res => {
+                console.log("Result sent to backend, status:", res.status);
+            })
+            .catch(err => {
+                console.error("Failed to send result to backend:", err);
+            });
+
 } catch (e) {
     console.error("Error building/sending Telegram result payload:", e);
 }
