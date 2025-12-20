@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Hokm - Christmas Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://telegram.org/js/games.js"></script>
+
+    <style>
+        /* Prevent pull-to-refresh on mobile */
+        body { overscroll-behavior: none; touch-action: none; }
+
+        /* Card Styles */
+        .card {
+            width: 60px; /* Increased slightly for mobile */
+            height: 85px;
+            background: white;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            position: relative;
+            user-select: none;
+            z-index: 10;
+        }
+        
+        @media (min-width: 768px) {
+            .card {
+                width: 90px;
+                height: 130px;
+                font-size: 2rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            }
+        }
+
+        .card:hover {
+            transform: translateY(-10px);
+            z-index: 20;
+        }
+
+        .card.disabled {
+            filter: brightness(0.7);
+            cursor: not-allowed;
+        }
+
+        .card.played {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transition: all 0.5s ease-out;
+        }
+        
+        .card-red { color: #d32f2f; }
+        .card-black { color: #1f2937; }
+
+        /* Table Layout */
+        .game-table {
+            background-color: #0b3d25;
+            background-image: 
+                radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05) 1px, transparent 1px),
+                radial-gradient(circle at 10% 10%, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 40px 40px;
+        }
+
+        /* Player Areas */
+        .player-area { position: absolute; display: flex; justify-content: center; align-items: center; z-index: 10; }
+        
+        /* Mobile Specific Layout Adjustments */
+        .player-bottom { bottom: 10px; left: 0; right: 0; height: 140px; flex-direction: column; justify-content: flex-end; padding-bottom: 10px; }
+        .player-top { top: 10px; left: 0; right: 0; height: 90px; }
+        
+        /* Push side players to edges to save horizontal space */
+        .player-left { left: 0; top: 0; bottom: 0; width: 60px; flex-direction: column; }
+        .player-right { right: 0; top: 0; bottom: 0; width: 60px; flex-direction: column; }
+
+        @media (min-width: 768px) {
+            .player-left { width: 100px; left: 20px; }
+            .player-right { width: 100px; right: 20px; }
+            .player-bottom { height: 160px; padding-bottom: 0; }
+        }
+
+        /* Hands */
+        .hand { display: flex; justify-content: center; }
+        
+        /* Dynamic Overlap based on screen size */
+        .hand-overlap > * { margin-left: -38px; } /* Tighter overlap for mobile */
+        .hand-overlap > *:first-child { margin-left: 0; }
+        
+        @media (min-width: 768px) {
+            .hand-overlap > * { margin-left: -40px; }
+        }
+
+        .hand-vertical > * { margin-top: -60px; }
+        .hand-vertical > *:first-child { margin-top: 0; }
+
+        /* Card Back */
+        .card-back {
+            background: #b71c1c;
+            background-image: 
+                linear-gradient(45deg, transparent 48%, #fff 48%, #fff 52%, transparent 52%),
+                linear-gradient(-45deg, transparent 48%, #fff 48%, #fff 52%, transparent 52%);
+            background-size: 20px 20px;
+            border: 2px solid #fff;
+        }
+
+        /* Center Play Area */
+        .trick-area {
+            position: absolute;
+            top: 45%; /* Slightly higher to give space for player hand */
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 140px;
+            height: 140px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        @media (min-width: 768px) {
+            .trick-area {
+                width: 200px;
+                height: 200px;
+                top: 50%;
+            }
+        }
+
+        /* Snow Animation */
+        .snowflake {
+            position: absolute;
+            top: -10px;
+            color: white;
+            opacity: 0.8;
+            pointer-events: none;
+            z-index: 1;
+            animation: fall linear infinite;
+        }
+
+        @keyframes fall {
+            to { transform: translateY(105vh); }
+        }
+
+        /* Modal Gradient to see cards */
+        .modal-gradient {
+            background: linear-gradient(to bottom, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 50%, rgba(0,0,0,0.1) 80%, transparent 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 h-screen w-screen overflow-hidden select-none font-sans text-white">
+
+    <!-- Snow Container -->
+    <div id="snow-container" class="absolute inset-0 pointer-events-none overflow-hidden z-0"></div>
+
+    <!-- Game Container -->
+    <div id="game-container" class="relative w-full h-full game-table hidden">
+        
+        <!-- Info Bar -->
+        <div class="absolute top-0 left-0 right-0 p-2 bg-black/40 flex justify-between items-center text-xs md:text-base z-30 backdrop-blur-sm">
+            <div class="flex gap-2 md:gap-4 flex-col md:flex-row">
+                <span class="font-bold text-yellow-400">Wallet: $<span id="wallet-display">100</span></span>
+                <span class="font-bold text-blue-300">Bet: $<span id="bet-display">0</span></span>
+            </div>
+            <div class="flex gap-2 md:gap-4 items-center">
+                <div id="trump-display" class="hidden flex items-center gap-1 md:gap-2 bg-gray-800 px-2 py-1 rounded border border-white/20">
+                    <span class="hidden md:inline">Hokm:</span>
+                    <span id="trump-icon" class="text-xl md:text-2xl leading-none"></span>
+                </div>
+                <div class="font-bold text-right leading-tight">
+                    <div class="text-green-400">You: <span id="score-team">0</span></div>
+                    <div class="text-red-400">Foe: <span id="score-enemy">0</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Notification Area -->
+        <div id="notification" class="absolute top-16 md:top-20 left-1/2 transform -translate-x-1/2 bg-red-900/90 border border-white/30 px-4 py-2 rounded-full text-white text-sm md:text-base font-bold transition-opacity duration-300 opacity-0 z-40 pointer-events-none shadow-[0_0_15px_rgba(255,255,255,0.5)] whitespace-nowrap">
+            Notification
+        </div>
+
+        <!-- Trick Area (Center) -->
+        <div class="trick-area">
+            <div id="trick-top" class="absolute top-0 left-1/2 -translate-x-1/2 transition-all duration-300"></div>
+            <div id="trick-right" class="absolute right-0 top-1/2 -translate-y-1/2 transition-all duration-300"></div>
+            <div id="trick-bottom" class="absolute bottom-0 left-1/2 -translate-x-1/2 transition-all duration-300"></div>
+            <div id="trick-left" class="absolute left-0 top-1/2 -translate-y-1/2 transition-all duration-300"></div>
+        </div>
+
+        <!-- Players -->
+        <!-- Top (Partner) -->
+        <div class="player-area player-top">
+            <div class="flex flex-col items-center">
+                <div class="bg-red-800 border border-white/20 px-2 py-1 rounded text-[10px] md:text-xs mb-1" id="tag-partner">Ali (Partner) 🎄</div>
+                <div id="hand-partner" class="hand hand-overlap"></div>
+            </div>
+        </div>
+
+        <!-- Right (Enemy 1) -->
+        <div class="player-area player-right">
+            <div class="flex flex-col items-center">
+                <div class="bg-green-800 border border-white/20 px-2 py-1 rounded text-[10px] md:text-xs mb-1 transform rotate-90 origin-bottom whitespace-nowrap">Reza 🎅</div>
+                <div id="hand-right" class="hand flex-col hand-vertical"></div>
+            </div>
+        </div>
+
+        <!-- Left (Enemy 2) -->
+        <div class="player-area player-left">
+            <div class="flex flex-col items-center">
+                <div class="bg-green-800 border border-white/20 px-2 py-1 rounded text-[10px] md:text-xs mb-1 transform -rotate-90 origin-bottom whitespace-nowrap">Hassan ☃️</div>
+                <div id="hand-left" class="hand flex-col hand-vertical"></div>
+            </div>
+        </div>
+
+        <!-- Bottom (Player) -->
+        <div class="player-area player-bottom z-20">
+            <!-- Hand Container -->
+            <div id="hand-player" class="hand hand-overlap mb-2 relative"></div>
+            
+            <!-- Controls -->
+            <div id="player-controls" class="h-6 md:h-8 flex justify-center w-full">
+                <div class="bg-yellow-600 px-3 py-1 rounded text-xs md:text-sm font-bold shadow hidden animate-pulse" id="turn-indicator">Your Turn</div>
+            </div>
+        </div>
+
+        <!-- Trump Selection Modal -->
+        <!-- UPDATED: Gradient background so player can see hand at bottom -->
+        <div id="trump-modal" class="absolute inset-0 modal-gradient z-50 flex flex-col justify-start pt-24 md:pt-0 md:justify-center items-center hidden">
+            <h2 class="text-2xl md:text-3xl font-bold mb-4 md:mb-6 text-white text-center drop-shadow-[0_0_10px_rgba(255,255,255,0.8)] px-4">
+                You are the Hakem!<br><span class="text-sm md:text-xl font-normal text-gray-200 block mt-2">(Look at your cards below)</span>
+            </h2>
+            
+            <div class="flex gap-2 md:gap-4 mb-8">
+                <button onclick="game.playerSelectTrump('♠')" class="card bg-white text-black hover:bg-gray-200 hover:scale-110 transition-transform"><span class="text-2xl md:text-4xl">♠</span></button>
+                <button onclick="game.playerSelectTrump('♥')" class="card bg-white text-red-500 hover:bg-gray-200 hover:scale-110 transition-transform"><span class="text-2xl md:text-4xl">♥</span></button>
+                <button onclick="game.playerSelectTrump('♣')" class="card bg-white text-black hover:bg-gray-200 hover:scale-110 transition-transform"><span class="text-2xl md:text-4xl">♣</span></button>
+                <button onclick="game.playerSelectTrump('♦')" class="card bg-white text-red-500 hover:bg-gray-200 hover:scale-110 transition-transform"><span class="text-2xl md:text-4xl">♦</span></button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Main Menu / Betting Screen -->
+    <div id="menu-screen" class="absolute inset-0 bg-[#0b3d25] flex flex-col items-center justify-center z-50 px-4">
+        <div class="text-center mb-8">
+            <h1 class="text-5xl md:text-6xl font-bold text-red-500 drop-shadow-[0_0_5px_rgba(255,255,255,1)] mb-2" style="font-family: serif;">❄️ HOKM ❄️</h1>
+            <p class="text-green-300 text-lg md:text-xl font-bold">Christmas Edition</p>
+        </div>
+        
+        <div class="bg-black/60 backdrop-blur-md p-6 md:p-8 rounded-xl shadow-2xl text-center w-full max-w-sm md:max-w-md border border-white/20">
+            <div class="mb-6">
+                <p class="text-gray-300 mb-2">Your Christmas Wallet</p>
+                <div class="text-4xl font-bold text-yellow-400">$<span id="menu-wallet">100</span></div>
+            </div>
+
+            <div class="mb-8">
+                <label class="block text-gray-300 mb-2 font-bold">Place Your Bet</label>
+                <div class="flex items-center gap-4">
+                    <input type="range" id="bet-slider" min="10" max="100" step="10" value="10" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer accent-red-500">
+                    <span class="text-2xl font-bold w-16 text-blue-300">$<span id="menu-bet-val">10</span></span>
+                </div>
+            </div>
+
+            <button id="btn-start" class="w-full bg-red-700 hover:bg-red-600 text-white font-bold py-3 md:py-4 rounded-lg text-lg md:text-xl transition-colors shadow-lg border border-red-500">
+                DEAL CARDS
+            </button>
+            <p id="game-over-msg" class="text-red-400 mt-4 hidden font-bold"></p>
+        </div>
+        <div class="mt-8 text-white/50 text-sm">Merry Christmas & Happy New Year!</div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="absolute inset-0 bg-black/90 z-50 flex flex-col justify-center items-center hidden backdrop-blur-md">
+        <h2 id="result-title" class="text-4xl md:text-5xl font-bold mb-4 drop-shadow-md">You Won!</h2>
+        <p id="result-subtitle" class="text-lg md:text-xl text-gray-300 mb-8">Score: 7 - 4</p>
+        <div id="result-change" class="text-3xl font-bold text-yellow-400 mb-8">+$20</div>
+        <button id="btn-play-again" class="bg-green-700 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg text-lg border border-green-500 shadow-[0_0_15px_rgba(0,255,0,0.3)]">
+            Play Again
+        </button>
+    </div>
+
+<script>
+/**
+ * SNOW EFFECT
+ */
+function createSnow() {
+    const container = document.getElementById('snow-container');
+    const snowCount = 30; // Reduced for mobile performance
+    const chars = ['❄', '❅', '❆', '•'];
+    
+    for (let i = 0; i < snowCount; i++) {
+        const snowflake = document.createElement('div');
+        snowflake.classList.add('snowflake');
+        snowflake.innerText = chars[Math.floor(Math.random() * chars.length)];
+        
+        // Random positioning
+        snowflake.style.left = Math.random() * 100 + 'vw';
+        
+        // Randomize animation properties
+        const duration = Math.random() * 5 + 5 + 's'; // 5-10s
+        const delay = Math.random() * 5 + 's';
+        const size = Math.random() * 1.5 + 0.5 + 'em';
+        
+        snowflake.style.animationDuration = duration;
+        snowflake.style.animationDelay = delay;
+        snowflake.style.fontSize = size;
+        
+        container.appendChild(snowflake);
+    }
+}
+createSnow();
+
+/**
+ * HOKM GAME ENGINE
+ */
+const SUITS = ['♠', '♥', '♣', '♦'];
+const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A'];
+const RANK_VALUE = {
+    '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10,
+    'J': 11, 'Q': 12, 'K': 13, 'A': 14
+};
+
+class Card {
+    constructor(suit, rank) {
+        this.suit = suit;
+        this.rank = rank;
+        this.value = RANK_VALUE[rank];
+        this.color = (suit === '♥' || suit === '♦') ? 'red' : 'black';
+        this.id = `${suit}${rank}`;
+    }
+}
+
+
+// --- Telegram helper to read user & chat info ---
+function getTelegramPlayerInfo() {
+    let userId = null;
+    let username = null;
+    let firstName = null;
+    let chatId = null;
+    let startParam = null;
+
+    try {
+        if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initDataUnsafe) {
+            const data = Telegram.WebApp.initDataUnsafe;
+            if (data.user) {
+                userId = data.user.id;
+                username = data.user.username || null;
+                firstName = data.user.first_name || null;
+            }
+            if (data.chat) {
+                chatId = data.chat.id;
+            }
+            if (data.start_param) {
+                startParam = data.start_param;
+            }
+        }
+    } catch (e) {
+        console.error("Error reading Telegram.WebApp data:", e);
+    }
+
+    try {
+        if (!userId && window.TelegramGameProxy && TelegramGameProxy.initParams) {
+            const p = TelegramGameProxy.initParams;
+            const user = p.user || p.sender;
+            if (user) {
+                userId = user.id;
+                username = user.username || null;
+                firstName = user.first_name || null;
+            }
+        }
+    } catch (e) {
+        console.error("Error reading TelegramGameProxy data:", e);
+    }
+
+    return { userId, username, firstName, chatId, startParam };
+}
+
+
+class HokmGame {
+    constructor() {
+        this.deck = [];
+        this.players = [[], [], [], []]; 
+        this.playedCards = [null, null, null, null]; 
+        this.hakemIndex = 0; 
+        this.trumpSuit = null; 
+        this.turnIndex = 0; 
+        this.startTurnIndex = 0; 
+        this.teamScores = [0, 0]; 
+        this.tricksWon = [0, 0]; 
+        this.wallet = 100;
+        this.currentBet = 10;
+        this.trickSuit = null; 
+        this.phase = 'BETTING'; 
+        this.timerIds = []; 
+        this.initUI();
+    }
+
+    setGameTimeout(fn, delay) {
+        const id = setTimeout(() => {
+            fn();
+            this.timerIds = this.timerIds.filter(t => t !== id);
+        }, delay);
+        this.timerIds.push(id);
+    }
+
+    clearTimers() {
+        this.timerIds.forEach(id => clearTimeout(id));
+        this.timerIds = [];
+    }
+
+    initUI() {
+        const slider = document.getElementById('bet-slider');
+        const display = document.getElementById('menu-bet-val');
+        slider.oninput = () => {
+            display.innerText = slider.value;
+            this.currentBet = parseInt(slider.value);
+        };
+
+        document.getElementById('btn-start').onclick = () => this.startGame();
+    }
+
+    startGame() {
+        this.clearTimers();
+
+        if (this.wallet < this.currentBet) {
+            alert("Not enough money! Resetting wallet...");
+            this.wallet = 100;
+            this.updateMenuUI();
+            return;
+        }
+
+        document.getElementById('menu-screen').classList.add('hidden');
+        document.getElementById('game-container').classList.remove('hidden');
+        document.getElementById('result-modal').classList.add('hidden');
+        
+        this.phase = 'DEALING_1';
+        this.hakemIndex = Math.floor(Math.random() * 4);
+        this.turnIndex = this.hakemIndex;
+        this.startTurnIndex = this.hakemIndex;
+
+        this.showNotification(`Hakem is ${this.getPlayerName(this.hakemIndex)}`);
+        
+        this.createDeck();
+        this.shuffleDeck();
+        
+        this.players = [[], [], [], []];
+        this.tricksWon = [0, 0];
+        this.updateScoreboard();
+        this.playedCards = [null, null, null, null];
+        this.trumpSuit = null;
+        this.trickSuit = null;
+
+        this.dealPhase1();
+    }
+
+    createDeck() {
+        this.deck = [];
+        for (let s of SUITS) {
+            for (let r of RANKS) {
+                this.deck.push(new Card(s, r));
+            }
+        }
+    }
+
+    shuffleDeck() {
+        for (let i = this.deck.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [this.deck[i], this.deck[j]] = [this.deck[j], this.deck[i]];
+        }
+    }
+
+    dealPhase1() {
+        this.phase = 'DEALING_1';
+        for(let i=0; i<4; i++) {
+            this.players[i] = this.deck.splice(0, 5);
+            this.sortHand(this.players[i]);
+        }
+        this.renderHands();
+
+        if (this.hakemIndex === 0) {
+            this.phase = 'HOKM_SELECT';
+            document.getElementById('trump-modal').classList.remove('hidden');
+        } else {
+            this.setGameTimeout(() => {
+                this.aiChooseTrump();
+                this.dealPhase2();
+            }, 1000);
+        }
+    }
+
+    playerSelectTrump(suit) {
+        if (this.phase !== 'HOKM_SELECT') return;
+        this.trumpSuit = suit;
+        document.getElementById('trump-modal').classList.add('hidden');
+        this.updateTrumpDisplay();
+        this.dealPhase2();
+    }
+
+    aiChooseTrump() {
+        const hand = this.players[this.hakemIndex];
+        let counts = {};
+        SUITS.forEach(s => counts[s] = 0);
+        hand.forEach(c => counts[c.suit]++);
+
+        let bestSuit = SUITS[0];
+        let maxCount = -1;
+
+        for (let s of SUITS) {
+            if (counts[s] > maxCount) {
+                maxCount = counts[s];
+                bestSuit = s;
+            }
+        }
+        this.trumpSuit = bestSuit;
+        this.showNotification(`${this.getPlayerName(this.hakemIndex)} chose ${this.trumpSuit}`);
+        this.updateTrumpDisplay();
+    }
+
+    dealPhase2() {
+        this.phase = 'DEALING_2';
+        for(let i=0; i<4; i++) {
+            this.players[i] = this.players[i].concat(this.deck.splice(0, 8));
+            this.sortHand(this.players[i]);
+        }
+        this.renderHands();
+        
+        this.phase = 'PLAYING';
+        this.trickSuit = null;
+        this.startTurnIndex = this.hakemIndex;
+        this.turnIndex = this.startTurnIndex;
+        
+        this.setGameTimeout(() => this.nextTurn(), 1000);
+    }
+
+    sortHand(hand) {
+        hand.sort((a, b) => {
+            if (a.suit !== b.suit) return SUITS.indexOf(a.suit) - SUITS.indexOf(b.suit);
+            return a.value - b.value;
+        });
+    }
+
+    nextTurn() {
+        if (this.phase !== 'PLAYING') return;
+        if (this.isRoundOver()) return;
+
+        const playerIndex = this.turnIndex;
+        this.highlightActivePlayer(playerIndex);
+
+        if (playerIndex === 0) {
+            document.getElementById('turn-indicator').classList.remove('hidden');
+            this.enablePlayerInput();
+        } else {
+            document.getElementById('turn-indicator').classList.add('hidden');
+            this.disablePlayerInput();
+            this.setGameTimeout(() => this.aiPlay(playerIndex), 800 + Math.random() * 500);
+        }
+    }
+
+    aiPlay(playerIndex) {
+        if (this.phase !== 'PLAYING') return;
+        
+        const hand = this.players[playerIndex];
+        let cardToPlay = null;
+
+        if (this.trickSuit === null) {
+            const nonTrumps = hand.filter(c => c.suit !== this.trumpSuit);
+            if (nonTrumps.length > 0) {
+                 nonTrumps.sort((a,b) => a.value - b.value);
+                 cardToPlay = nonTrumps[nonTrumps.length - 1]; 
+            } else {
+                cardToPlay = hand[hand.length - 1];
+            }
+        } else {
+            const followers = hand.filter(c => c.suit === this.trickSuit);
+            if (followers.length > 0) {
+                const winningCard = this.getWinningCard();
+                const currentWinner = this.getWinningPlayerIndex();
+                const isTeammateWinning = (currentWinner !== null && this.areTeammates(playerIndex, currentWinner));
+
+                followers.sort((a,b) => a.value - b.value);
+                
+                if (isTeammateWinning) {
+                    cardToPlay = followers[0]; 
+                } else {
+                    const highest = followers[followers.length - 1];
+                    if (!winningCard || (winningCard.suit === this.trickSuit && highest.value > winningCard.value)) {
+                        cardToPlay = highest; 
+                    } else {
+                        cardToPlay = followers[0]; 
+                    }
+                }
+            } else {
+                const trumps = hand.filter(c => c.suit === this.trumpSuit);
+                const winningCard = this.getWinningCard();
+                const currentWinner = this.getWinningPlayerIndex();
+                const isTeammateWinning = (currentWinner !== null && this.areTeammates(playerIndex, currentWinner));
+
+                if (isTeammateWinning) {
+                    const garbage = hand.filter(c => c.suit !== this.trumpSuit);
+                    if (garbage.length > 0) {
+                        garbage.sort((a,b) => a.value - b.value);
+                        cardToPlay = garbage[0];
+                    } else {
+                        trumps.sort((a,b) => a.value - b.value);
+                        cardToPlay = trumps[0];
+                    }
+                } else {
+                    if (trumps.length > 0) {
+                        trumps.sort((a,b) => a.value - b.value);
+                        if (winningCard && winningCard.suit === this.trumpSuit) {
+                            const betterTrump = trumps.find(t => t.value > winningCard.value);
+                            cardToPlay = betterTrump || trumps[0];
+                        } else {
+                            cardToPlay = trumps[0];
+                        }
+                    } else {
+                        hand.sort((a,b) => a.value - b.value);
+                        cardToPlay = hand[0];
+                    }
+                }
+            }
+        }
+
+        this.playCard(playerIndex, cardToPlay);
+    }
+
+    areTeammates(p1, p2) { return (p1 % 2) === (p2 % 2); }
+
+    getWinningCard() {
+        let bestCard = null;
+        let idx = this.startTurnIndex;
+        for(let i=0; i<4; i++) {
+            const card = this.playedCards[idx];
+            if (!card) break;
+            if (bestCard === null) {
+                bestCard = card;
+            } else {
+                if (card.suit === bestCard.suit) {
+                    if (card.value > bestCard.value) bestCard = card;
+                } else if (card.suit === this.trumpSuit) {
+                    bestCard = card;
+                }
+            }
+            idx = (idx + 1) % 4;
+        }
+        return bestCard;
+    }
+    
+    getWinningPlayerIndex() {
+        let bestCard = null;
+        let bestIdx = null;
+        let idx = this.startTurnIndex;
+        let count = 0;
+        
+        while(count < 4) {
+            const card = this.playedCards[idx];
+            if (card) {
+                if (bestCard === null) {
+                    bestCard = card;
+                    bestIdx = idx;
+                } else {
+                    if (card.suit === this.trumpSuit && bestCard.suit !== this.trumpSuit) {
+                        bestCard = card;
+                        bestIdx = idx;
+                    } else if (card.suit === bestCard.suit && card.value > bestCard.value) {
+                        bestCard = card;
+                        bestIdx = idx;
+                    }
+                }
+            }
+            idx = (idx + 1) % 4;
+            count++;
+        }
+        return bestIdx;
+    }
+
+    playCard(playerIndex, card) {
+        const hand = this.players[playerIndex];
+        const index = hand.indexOf(card);
+        if (index > -1) hand.splice(index, 1);
+
+        this.playedCards[playerIndex] = card;
+        
+        if (this.trickSuit === null) this.trickSuit = card.suit;
+
+        this.renderHands();
+        this.renderTable();
+
+        this.turnIndex = (this.turnIndex + 1) % 4;
+        
+        if (this.playedCards.filter(c => c !== null).length === 4) {
+            this.setGameTimeout(() => this.endTrick(), 1500);
+        } else {
+            this.nextTurn();
+        }
+    }
+
+    endTrick() {
+        let winnerIndex = this.startTurnIndex;
+        let bestCard = this.playedCards[winnerIndex];
+
+        for (let i = 0; i < 4; i++) {
+            const pIdx = i;
+            const card = this.playedCards[pIdx];
+            if (pIdx === this.startTurnIndex) continue;
+
+            if (card.suit === bestCard.suit) {
+                if (card.value > bestCard.value) {
+                    bestCard = card;
+                    winnerIndex = pIdx;
+                }
+            } else if (card.suit === this.trumpSuit && bestCard.suit !== this.trumpSuit) {
+                bestCard = card;
+                winnerIndex = pIdx;
+            }
+        }
+
+        const winningTeam = winnerIndex % 2; 
+        this.tricksWon[winningTeam]++;
+        this.updateScoreboard();
+        this.showNotification(`${this.getPlayerName(winnerIndex)} won!`);
+
+        this.playedCards = [null, null, null, null];
+        this.renderTable();
+        
+        if (this.tricksWon[0] >= 7 || this.tricksWon[1] >= 7) {
+            this.endGame(winningTeam === 0);
+        } else {
+            this.trickSuit = null;
+            this.startTurnIndex = winnerIndex;
+            this.turnIndex = winnerIndex;
+            this.setGameTimeout(() => this.nextTurn(), 500);
+        }
+    }
+
+    
+    endGame(playerWon) {
+        this.phase = 'END';
+        this.clearTimers();
+
+        const modal = document.getElementById('result-modal');
+        const title = document.getElementById('result-title');
+        const sub = document.getElementById('result-subtitle');
+        const change = document.getElementById('result-change');
+        const btn = document.getElementById('btn-play-again');
+
+        modal.classList.remove('hidden');
+
+        if (playerWon) {
+            title.innerText = "VICTORY!";
+            title.className = "text-4xl md:text-5xl font-bold mb-4 text-green-500 drop-shadow-md";
+            const winAmount = this.currentBet;
+            this.wallet += winAmount;
+            change.innerText = `+$${winAmount}`;
+            change.className = "text-3xl font-bold text-green-400 mb-8";
+        } else {
+            title.innerText = "DEFEAT";
+            title.className = "text-4xl md:text-5xl font-bold mb-4 text-red-500 drop-shadow-md";
+            this.wallet -= this.currentBet;
+            change.innerText = `-$${this.currentBet}`;
+            change.className = "text-3xl font-bold text-red-400 mb-8";
+        }
+
+        if (this.wallet <= 0) {
+            this.wallet = 100;
+            sub.innerText = `You went broke! Wallet reset to $100.`;
+        } else {
+            sub.innerText = `Score: ${this.tricksWon[0]} - ${this.tricksWon[1]}`;
+        }
+
+        // ---- Send result to backend for admin notification ----
+        try {
+            const tgParams = window.TelegramGameProxy
+                ? window.TelegramGameProxy.initParams
+                : {};
+
+            const payload = {
+                userId: tgParams && tgParams.userId ? tgParams.userId : null,
+                chatId: tgParams && tgParams.chatId ? tgParams.chatId : null,
+                messageId: tgParams && tgParams.messageId ? tgParams.messageId : null,
+                won: playerWon,
+                tricksTeam: this.tricksWon[0],
+                tricksEnemy: this.tricksWon[1],
+                wallet: this.wallet,
+                bet: this.currentBet
+            };
+
+            fetch("/hokm/result", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            }).catch(err => {
+                console.error("Failed to send result to backend:", err);
+            });
+        } catch (e) {
+            console.error("Error building Telegram result payload:", e);
+        }
+        // -------------------------------------------------------
+
+        btn.onclick = () => {
+            this.wallet = 100;
+            this.updateMenuUI();
+
+            modal.classList.add('hidden');
+            document.getElementById('game-container').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+        };
+    }
+
+    }
+
+    updateMenuUI() {
+        document.getElementById('menu-wallet').innerText = this.wallet;
+        document.getElementById('wallet-display').innerText = this.wallet;
+        const slider = document.getElementById('bet-slider');
+        slider.max = this.wallet;
+        slider.value = 10; // Reset bet to default
+        document.getElementById('menu-bet-val').innerText = 10;
+        this.currentBet = 10;
+    }
+
+    // --- UI HELPERS ---
+
+    renderHands() {
+        const pHandDiv = document.getElementById('hand-player');
+        pHandDiv.innerHTML = '';
+        this.players[0].forEach(card => {
+            const el = this.createCardElement(card);
+            el.onclick = () => this.handleCardClick(card);
+            pHandDiv.appendChild(el);
+        });
+
+        // Simplified rendering for AI hands (fewer cards for performance/visuals)
+        ['right', 'partner', 'left'].forEach((pos, idx) => {
+            const div = document.getElementById(`hand-${pos}`);
+            div.innerHTML = '';
+            const pIdx = idx + 1;
+            const count = this.players[pIdx].length;
+            // On mobile, just show a few cards for opponents to save DOM weight
+            const visibleCount = (window.innerWidth < 768) ? Math.min(count, 5) : count;
+            
+            for(let i=0; i<visibleCount; i++) {
+                const back = document.createElement('div');
+                // Smaller AI cards on mobile
+                back.className = 'card card-back w-[35px] h-[50px] md:w-[60px] md:h-[90px] rounded shadow-md border border-white';
+                div.appendChild(back);
+            }
+        });
+    }
+
+    renderTable() {
+        const positions = ['bottom', 'right', 'top', 'left'];
+        for(let i=0; i<4; i++) {
+            const slot = document.getElementById(`trick-${positions[i]}`);
+            slot.innerHTML = '';
+            if (this.playedCards[i]) {
+                const el = this.createCardElement(this.playedCards[i]);
+                el.classList.add('cursor-default');
+                el.onclick = null; 
+                slot.appendChild(el);
+            }
+        }
+    }
+
+    createCardElement(card) {
+        const div = document.createElement('div');
+        div.className = `card ${card.color === 'red' ? 'card-red' : 'card-black'} bg-white`;
+        div.innerHTML = `
+            <div class="absolute top-1 left-1 flex flex-col items-center leading-none">
+                <span class="text-[10px] md:text-sm font-bold">${card.rank}</span>
+                <span class="text-[10px] md:text-xs">${card.suit}</span>
+            </div>
+            <div class="text-3xl md:text-5xl pb-1">${card.suit}</div>
+            <div class="absolute bottom-1 right-1 flex flex-col items-center leading-none transform rotate-180">
+                <span class="text-[10px] md:text-sm font-bold">${card.rank}</span>
+                <span class="text-[10px] md:text-xs">${card.suit}</span>
+            </div>
+        `;
+        return div;
+    }
+
+    handleCardClick(card) {
+        if (this.turnIndex !== 0) return; 
+        if (this.phase !== 'PLAYING') return;
+
+        if (!this.isValidMove(card)) {
+            this.showNotification("Must follow suit!", true);
+            return;
+        }
+
+        this.disablePlayerInput();
+        this.playCard(0, card);
+    }
+
+    isValidMove(card) {
+        if (this.trickSuit === null) return true; 
+        if (card.suit === this.trickSuit) return true; 
+        const hand = this.players[0];
+        const hasSuit = hand.some(c => c.suit === this.trickSuit);
+        if (hasSuit) return false; 
+        return true; 
+    }
+
+    enablePlayerInput() {
+        const handDiv = document.getElementById('hand-player');
+        Array.from(handDiv.children).forEach((el, idx) => {
+            const card = this.players[0][idx];
+            if (this.isValidMove(card)) {
+                el.classList.remove('disabled');
+                el.style.opacity = '1';
+            } else {
+                el.classList.add('disabled');
+                el.style.opacity = '0.6';
+            }
+        });
+    }
+
+    disablePlayerInput() {
+        const handDiv = document.getElementById('hand-player');
+        Array.from(handDiv.children).forEach(el => {
+            el.classList.add('disabled');
+        });
+    }
+
+    updateScoreboard() {
+        document.getElementById('score-team').innerText = this.tricksWon[0];
+        document.getElementById('score-enemy').innerText = this.tricksWon[1];
+        document.getElementById('wallet-display').innerText = this.wallet;
+        document.getElementById('bet-display').innerText = this.currentBet;
+    }
+
+    updateTrumpDisplay() {
+        const el = document.getElementById('trump-display');
+        const icon = document.getElementById('trump-icon');
+        if (this.trumpSuit) {
+            el.classList.remove('hidden');
+            icon.innerText = this.trumpSuit;
+            icon.className = (this.trumpSuit === '♥' || this.trumpSuit === '♦') ? 'text-red-500 text-2xl' : 'text-white text-2xl';
+        } else {
+            el.classList.add('hidden');
+        }
+    }
+
+    highlightActivePlayer(idx) {
+        document.querySelectorAll('.player-area').forEach(el => el.classList.remove('opacity-100'));
+        document.querySelectorAll('.player-area').forEach(el => el.classList.add('opacity-70'));
+        
+        const map = ['bottom', 'right', 'top', 'left'];
+        document.querySelector(`.player-${map[idx]}`).classList.remove('opacity-70');
+        document.querySelector(`.player-${map[idx]}`).classList.add('opacity-100');
+    }
+
+    showNotification(msg, isError = false) {
+        const el = document.getElementById('notification');
+        el.innerText = msg;
+        el.className = `absolute top-16 md:top-20 left-1/2 transform -translate-x-1/2 px-4 py-2 rounded-full font-bold transition-opacity duration-300 z-40 pointer-events-none whitespace-nowrap ${isError ? 'bg-red-600 text-white' : 'bg-red-900/90 text-white border border-white/30'}`;
+        el.style.opacity = '1';
+        this.setGameTimeout(() => el.style.opacity = '0', 2000);
+    }
+
+    getPlayerName(idx) {
+        if (idx === 0) return "You";
+        if (idx === 1) return "Reza";
+        if (idx === 2) return "Ali";
+        if (idx === 3) return "Hassan";
+    }
+
+    isRoundOver() { return false; }
+}
+
+const game = new HokmGame();
+</script>
+
+<script src="https://telegram.org/js/games.js"></script>
+</body>
+</html
+        // --- Send result to backend for admin notification (Telegram WebApp + fallback) ----
+        try {
+            const info = getTelegramPlayerInfo();
+
+            const payload = {
+                userId: info.userId,
+                username: info.username,
+                firstName: info.firstName,
+                chatId: info.chatId,
+                startParam: info.startParam,
+                won: playerWon,
+                tricksTeam: this.tricksWon[0],
+                tricksEnemy: this.tricksWon[1],
+                wallet: this.wallet,
+                bet: this.currentBet
+            };
+
+            fetch("https://hokm-telegram-project.onrender.com/hokm/result", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload)
+            }).catch(err => {
+                console.error("Failed to send result to backend:", err);
+            });
+        } catch (e) {
+            console.error("Error building Telegram result payload:", e);
+        }
+
+>
