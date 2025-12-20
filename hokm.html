@@ -280,31 +280,60 @@
     function getTelegramPlayerInfo() {
       let userId = null, username = null, firstName = null, chatId = null, startParam = null;
 
-      try {
-        const data = window.Telegram?.WebApp?.initDataUnsafe;
-        if (data?.user) {
-          userId = data.user.id;
-          username = data.user.username || null;
-          firstName = data.user.first_name || null;
-        }
-        if (data?.chat) chatId = data.chat.id;
-        if (data?.start_param) startParam = data.start_param;
-      } catch (e) { console.error("Error reading Telegram.WebApp data:", e); }
+      // ---- Send result to backend (ALWAYS) + Telegram sendData (if available) ----
+try {
+  const info = getTelegramPlayerInfo();
 
-      try {
-        if (!userId && window.TelegramGameProxy?.initParams) {
-          const p = window.TelegramGameProxy.initParams;
-          const user = p.user || p.sender;
-          if (user) {
-            userId = user.id;
-            username = user.username || null;
-            firstName = user.first_name || null;
-          }
-        }
-      } catch (e) { console.error("Error reading TelegramGameProxy data:", e); }
+  const payload = {
+    userId: info.userId,
+    username: info.username,
+    firstName: info.firstName,
+    chatId: info.chatId,
+    startParam: info.startParam,
+    won: playerWon,
+    tricksTeam: this.tricksWon[0],
+    tricksEnemy: this.tricksWon[1],
+    wallet: this.wallet,
+    bet: this.currentBet,
+    ts: Date.now()
+  };
 
-      return { userId, username, firstName, chatId, startParam };
-    }
+  console.log("[RESULT] payload:", payload);
+
+  const endpoint = "https://hokm-telegram-project.onrender.com/hokm/result";
+
+  // 1) Fire-and-forget HTTP (best for webviews)
+  if (navigator.sendBeacon) {
+    const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+    const ok = navigator.sendBeacon(endpoint, blob);
+    console.log("[RESULT] sendBeacon:", ok);
+  }
+
+  // 2) Also do fetch (so you can see it in browser Network tab while debugging)
+  fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    mode: "cors",
+    keepalive: true
+  })
+    .then(async (r) => {
+      console.log("[RESULT] fetch status:", r.status);
+      const t = await r.text().catch(() => "");
+      console.log("[RESULT] fetch response:", t);
+    })
+    .catch((err) => console.error("[RESULT] fetch failed:", err));
+
+  // 3) If inside Telegram WebApp, also send via sendData (goes to bot as web_app_data)
+  if (window.Telegram?.WebApp?.sendData) {
+    Telegram.WebApp.sendData(JSON.stringify(payload));
+    console.log("[RESULT] Telegram.WebApp.sendData sent");
+  }
+} catch (e) {
+  console.error("[RESULT] Error sending result:", e);
+}
+// --------------------------------------------------------------------------
+
 
     class HokmGame {
       constructor() {
