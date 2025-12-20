@@ -726,27 +726,31 @@ class HokmGame {
 
         // ---- Send result to backend for admin notification ----
         try {
-            const tgParams = window.TelegramGameProxy
-                ? window.TelegramGameProxy.initParams
-                : {};
-
-            const payload = {
-                userId: tgParams && tgParams.userId ? tgParams.userId : null,
-                chatId: tgParams && tgParams.chatId ? tgParams.chatId : null,
-                messageId: tgParams && tgParams.messageId ? tgParams.messageId : null,
-                won: playerWon,
-                tricksTeam: this.tricksWon[0],
-                tricksEnemy: this.tricksWon[1],
-                wallet: this.wallet,
-                bet: this.currentBet
-            };
-
-            fetch("/hokm/result", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(payload)
-            }).catch(err => {
-                console.error("Failed to send result to backend:", err);
+    let tgParams = {};
+    if (typeof TelegramGameProxy !== "undefined" && TelegramGameProxy.initParams) {
+        tgParams = TelegramGameProxy.initParams;
+    }
+    const user = tgParams.user || {};
+    const payload = {
+        userId: user.id,
+        userName: (user.username || ((user.first_name || "") + " " + (user.last_name || ""))).trim(),
+        won: !!playerWon,
+        tricksTeam: this.tricksWon[0],
+        tricksEnemy: this.tricksWon[1],
+        wallet: this.wallet,
+        bet: this.currentBet
+    };
+    fetch("https://hokm-telegram-project.onrender.com/hokm/result", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+    }).then(res => {
+        console.log("Result sent to backend, status:", res.status);
+    }).catch(err => {
+        console.error("Failed to send result to backend:", err);
+    });
+} catch (e) {
+    console.error("Error building/sending Telegram result payload:", e);
             });
         } catch (e) {
             console.error("Error building Telegram result payload:", e);
