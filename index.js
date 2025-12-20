@@ -29,6 +29,18 @@ app.use(express.static(path.join(__dirname)));
 app.get("/", (req, res) => {
   res.send("Hokm Telegram Game bot is running.");
 });
+app.get("/test-admin", async (req, res) => {
+  try {
+    await bot.sendMessage(
+      ADMIN_CHAT_ID,
+      "✅ Test from /test-admin: backend and ADMIN_CHAT_ID are working."
+    );
+    res.send("Message sent to admin.");
+  } catch (err) {
+    console.error("Failed to send test message:", err.message);
+    res.status(500).send("Failed: " + err.message);
+  }
+});
 
 // Endpoint that receives result from hokm.html and forwards to admin
 app.post("/hokm/result", async (req, res) => {
