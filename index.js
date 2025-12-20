@@ -3,42 +3,33 @@ const bodyParser = require("body-parser");
 const path = require("path");
 const TelegramBot = require("node-telegram-bot-api");
 
-// ===== CONFIG =====
-const BOT_TOKEN = process.env.BOT_TOKEN;
+// --- CONFIG ---
+const BOT_TOKEN = process.env.BOT_TOKEN;               // your bot token
 const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || "0");
-
-// from BotFather: /newgame → hokmzombie
-const GAME_SHORT_NAME = process.env.GAME_SHORT_NAME || "hokmzombie";
-
-// where the HTML game lives (on Render)
+const GAME_SHORT_NAME = process.env.GAME_SHORT_NAME || "hokmzombie"; // <-- from BotFather
 const GAME_URL =
   process.env.GAME_URL ||
-  "https://hokm_telegram_project.onrender.com/hokm.html";
+  "https://hokm_telegram_project.onrender.com/hokm.html"; // <-- where hokm.html will be
 
 if (!BOT_TOKEN) {
   throw new Error("BOT_TOKEN is not set");
 }
 
-// ===== INIT =====
-const app = express();
+// --- INIT ---
 const bot = new TelegramBot(BOT_TOKEN, { polling: true });
+const app = express();
 
 app.use(bodyParser.json());
 
-// 🔹 Serve all files in repo root (including hokm.html)
+// 🔹 THIS LINE MAKES /hokm.html WORK
 app.use(express.static(path.join(__dirname)));
 
-// EXTRA safety: explicit route for hokm.html
-app.get("/hokm.html", (req, res) => {
-  res.sendFile(path.join(__dirname, "hokm.html"));
-});
-
-// Health check
+// Simple health check on "/"
 app.get("/", (req, res) => {
   res.send("Hokm Telegram Game bot is running.");
 });
 
-// Endpoint that the game calls at the end
+// Endpoint that hokm.html calls at the end of a game
 app.post("/hokm/result", async (req, res) => {
   try {
     const {
@@ -69,18 +60,18 @@ app.post("/hokm/result", async (req, res) => {
     }
 
     res.sendStatus(200);
-  } catch (e) {
-    console.error("Error in /hokm/result:", e);
+  } catch (err) {
+    console.error("Error in /hokm/result:", err);
     res.sendStatus(500);
   }
 });
 
-// Send the game when user types /start or /hokm
+// When user sends /start or /hokm, send the game
 bot.onText(/\/start|\/hokm/, (msg) => {
   bot.sendGame(msg.chat.id, GAME_SHORT_NAME);
 });
 
-// When user taps Play, give Telegram the URL
+// When user presses Play, provide the game URL
 bot.on("callback_query", (query) => {
   if (query.game_short_name === GAME_SHORT_NAME) {
     bot.answerCallbackQuery(query.id, {
@@ -94,8 +85,9 @@ bot.on("callback_query", (query) => {
   }
 });
 
-// Start HTTP server
+// --- START SERVER ---
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server listening on port", PORT);
 });
+
