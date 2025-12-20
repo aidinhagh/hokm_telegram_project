@@ -891,7 +891,10 @@ class HokmGame {
         if (this.trumpSuit) {
             el.classList.remove('hidden');
             icon.innerText = this.trumpSuit;
-            icon.className = (this.trumpSuit === '♥' || this.trumpSuit === '♦') ? 'text-red-500 text-2xl' : 'text-white text-2xl';
+            icon.className =
+  (this.trumpSuit === '♥' || this.trumpSuit === '♦')
+    ? 'text-red-500 text-2xl'
+    : 'text-white text-2xl';
         } else {
             el.classList.add('hidden');
         }
