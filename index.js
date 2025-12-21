@@ -1,5 +1,4 @@
 import express from "express";
-import fetch from "node-fetch";
 import cors from "cors";
 
 const app = express();
@@ -15,6 +14,9 @@ app.post("/hokm/result", async (req, res) => {
     const token = process.env.BOT_TOKEN;
     const adminChatId = process.env.ADMIN_CHAT_ID;
 
+    if (!token) return res.status(500).json({ ok: false, error: "Missing BOT_TOKEN" });
+    if (!adminChatId) return res.status(500).json({ ok: false, error: "Missing ADMIN_CHAT_ID" });
+
     const text =
       `🎮 Hokm Result\n` +
       `User: ${data.firstName || ""} ${data.username ? "(@" + data.username + ")" : ""}\n` +
@@ -25,10 +27,11 @@ app.post("/hokm/result", async (req, res) => {
       `userId: ${data.userId || "?"}`;
 
     const tgUrl = `https://api.telegram.org/bot${token}/sendMessage`;
+
     const tgResp = await fetch(tgUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chat_id: adminChatId, text })
+      body: JSON.stringify({ chat_id: adminChatId, text }),
     });
 
     const tgJson = await tgResp.json();
@@ -41,4 +44,7 @@ app.post("/hokm/result", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 10000);
+app.listen(process.env.PORT || 10000, () => {
+  console.log("Server listening on", process.env.PORT || 10000);
+});
+
