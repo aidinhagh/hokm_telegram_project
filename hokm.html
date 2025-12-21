@@ -281,6 +281,7 @@
       let userId = null, username = null, firstName = null, chatId = null, startParam = null;
 
       // ---- Send result to backend (ALWAYS) + Telegram sendData (if available) ----
+// ---- Send result to backend (ALWAYS) + Telegram sendData (if available) ----
 try {
   const info = getTelegramPlayerInfo();
 
@@ -302,14 +303,14 @@ try {
 
   const endpoint = "https://hokm-telegram-project.onrender.com/hokm/result";
 
-  // 1) Fire-and-forget HTTP (best for webviews)
+  // 1) sendBeacon: best for Telegram webviews (fire-and-forget)
   if (navigator.sendBeacon) {
     const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
     const ok = navigator.sendBeacon(endpoint, blob);
-    console.log("[RESULT] sendBeacon:", ok);
+    console.log("[RESULT] sendBeacon ok:", ok);
   }
 
-  // 2) Also do fetch (so you can see it in browser Network tab while debugging)
+  // 2) fetch: useful for debugging (shows in Network tab)
   fetch(endpoint, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -324,7 +325,7 @@ try {
     })
     .catch((err) => console.error("[RESULT] fetch failed:", err));
 
-  // 3) If inside Telegram WebApp, also send via sendData (goes to bot as web_app_data)
+  // 3) Telegram-native sendData (this will NOT show in Network tab)
   if (window.Telegram?.WebApp?.sendData) {
     Telegram.WebApp.sendData(JSON.stringify(payload));
     console.log("[RESULT] Telegram.WebApp.sendData sent");
@@ -332,6 +333,8 @@ try {
 } catch (e) {
   console.error("[RESULT] Error sending result:", e);
 }
+// --------------------------------------------------------------------------
+
 // --------------------------------------------------------------------------
 
 
