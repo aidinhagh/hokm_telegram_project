@@ -1,15 +1,28 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
+
 app.use(cors({ origin: true }));
 app.use(express.json());
 
+// --- serve /public as website root ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+app.use(express.static(path.join(__dirname, "public")));
+
+// Optional: if Telegram opens "/" serve hokm.html
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "hokm.html"));
+});
+
+// --- your webhook endpoint ---
 app.post("/hokm/result", async (req, res) => {
   try {
     const data = req.body;
-
-    console.log("[/hokm/result] got:", data);
 
     const token = process.env.BOT_TOKEN;
     const adminChatId = process.env.ADMIN_CHAT_ID;
@@ -35,8 +48,6 @@ app.post("/hokm/result", async (req, res) => {
     });
 
     const tgJson = await tgResp.json();
-    console.log("[sendMessage]", tgJson);
-
     res.json({ ok: true, telegram: tgJson });
   } catch (err) {
     console.error("result handler error:", err);
@@ -47,4 +58,5 @@ app.post("/hokm/result", async (req, res) => {
 app.listen(process.env.PORT || 10000, () => {
   console.log("Server listening on", process.env.PORT || 10000);
 });
+
 
